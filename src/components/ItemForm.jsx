@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db, storage } from '../firebase';
 import { collection, addDoc, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signOut } from 'firebase/auth';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 const ItemForm = ({ user }) => {
@@ -15,7 +15,21 @@ const ItemForm = ({ user }) => {
   const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [updatingItemId, setUpdatingItemId] = useState(null);
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        navigate('/item-form'); // If the user is logged in, navigate to the ItemForm page
+      } else {
+        navigate('/login'); // If not logged in, navigate to the Login page
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup subscription on unmount
+  }, [navigate]);
 
   useEffect(() => {
     if (user?.uid) {
@@ -63,33 +77,8 @@ const ItemForm = ({ user }) => {
     }
   };
 
-  const handleUpdateItem = async (itemId) => {
-    if (itemName && quantity && image && user?.uid) {
-      setUpdating(true);
-      try {
-        const imageRef = ref(storage, `images/${image.name}`);
-        await uploadBytes(imageRef, image);
-        const imageUrl = await getDownloadURL(imageRef);
 
-        const itemRef = doc(db, 'items', itemId);
-        await updateDoc(itemRef, {
-          itemName,
-          quantity,
-          image: imageUrl,
-        });
 
-        setItemName('');
-        setQuantity('');
-        setImage(null);
-      } catch (error) {
-        console.error('Error updating item:', error);
-      } finally {
-        setUpdating(false);
-      }
-    } else {
-      console.error('Required fields are missing or user is not authenticated.');
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -210,13 +199,8 @@ const ItemForm = ({ user }) => {
                       <img src={item.image} alt="Item" className="w-10 h-10 mx-auto" />
                     </td>
                     <td className="p-4">
-                      <button
-                        onClick={() => handleUpdateItem(item.id)}
-                        className="bg-[#83c5be] text-[#fff] px-4 py-2 rounded-lg hover:bg-[#006d77]"
-                        disabled={updating}
-                      >
-                        {updating ? 'Updating...' : 'Update'}
-                      </button>
+                
+
                     </td>
                   </tr>
                 ))}
