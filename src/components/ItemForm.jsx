@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db, storage } from '../firebase';
-import { collection, addDoc, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { BiEdit } from 'react-icons/bi';
+import { MdDeleteForever } from 'react-icons/md';
 
 const ItemForm = ({ user }) => {
   const [itemName, setItemName] = useState('');
@@ -22,13 +24,13 @@ const ItemForm = ({ user }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        navigate('/item-form'); // If the user is logged in, navigate to the ItemForm page
+        navigate('/item-form');
       } else {
-        navigate('/login'); // If not logged in, navigate to the Login page
+        navigate('/login');
       }
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [navigate]);
 
   useEffect(() => {
@@ -77,8 +79,44 @@ const ItemForm = ({ user }) => {
     }
   };
 
+  const handleUpdateItem = async (id) => {
+    if (itemName && quantity) {
+      setUpdating(true);
+      try {
+        const itemRef = doc(db, 'items', id);
+        const updatedData = {};
+        if (itemName) updatedData.itemName = itemName;
+        if (quantity) updatedData.quantity = quantity;
+        if (image) {
+          const imageRef = ref(storage, `images/${image.name}`);
+          await uploadBytes(imageRef, image);
+          const imageUrl = await getDownloadURL(imageRef);
+          updatedData.image = imageUrl;
+        }
 
+        await updateDoc(itemRef, updatedData);
 
+        setItemName('');
+        setQuantity('');
+        setImage(null);
+        setUpdatingItemId(null);
+      } catch (error) {
+        console.error('Error updating item:', error);
+      } finally {
+        setUpdating(false);
+      }
+    } else {
+      console.error('Required fields are missing.');
+    }
+  };
+
+  const handleDeleteItem = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'items', id));
+    } catch (error) {
+      console.error('Error deleting item:', error);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -168,11 +206,11 @@ const ItemForm = ({ user }) => {
 
             <div className="flex justify-end w-full">
               <button
-                onClick={handleAddItem}
+                onClick={updatingItemId ? () => handleUpdateItem(updatingItemId) : handleAddItem}
                 className="bg-[#006d77] text-[#fff] px-4 py-2 rounded-lg hover:bg-[#83c5be]"
-                disabled={adding}
+                disabled={adding || updating}
               >
-                {adding ? 'Adding...' : 'Add Item'}
+                {updating ? 'Updating...' : adding ? 'Adding...' : 'Add Item'}
               </button>
             </div>
           </div>
@@ -198,9 +236,28 @@ const ItemForm = ({ user }) => {
                     <td className="p-4">
                       <img src={item.image} alt="Item" className="w-10 h-10 mx-auto" />
                     </td>
-                    <td className="p-4">
-                
+                    <td className="p-4 ">
+               
+                  <button
+                        onClick={() => {
+                          setItemName(item.itemName);
+                          setQuantity(item.quantity);
+                          setImage(null); // You might want to set the image URL if you need to show it
+                          setUpdatingItemId(item.id);
+                        }}
+                        className="bg-[#83c5be] text-[#fff] px-4 py-2 rounded-lg mr-2 hover:bg-[#006d77]" 
+                      >
+                        <BiEdit />
+                        
+                      </button>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="bg-[#ff4d4d] text-[#fff] px-4 py-2 rounded-lg hover:bg-[#cc0000]"
+                      >
+                        <MdDeleteForever className='text-lg text-[#fff]' />
 
+                      </button>
+                  
                     </td>
                   </tr>
                 ))}
